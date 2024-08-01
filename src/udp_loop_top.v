@@ -1,0 +1,495 @@
+//ETH UDP LOOPBACK
+module udp_loop_top
+(
+    input              clk   , //system clk ,50Mhz
+    input              rst_n , //system resetn
+    //RGMII
+    input              phy_rxc   , //rxclk
+    input              phy_rx_ctrl, //rx ctrl
+    input       [3:0]  phy_rxd   , //rxd[3:0]
+    output             phy_txc   , //txclk
+    output             phy_tx_ctrl, //
+    output      [3:0]  phy_txd   , //txd[3:0]         
+ //   output             phy_rstn,   //phy rst,active low
+    
+  //  output      [1:0]  linkspeed,
+    output            mdc   , //MDIO CLK
+    inout              mdio ,  //MDIO DATA 
+
+     
+  (*mark_debug="true"*)  input[7:0]  imgen_bt656_data,
+ 
+  (*mark_debug="true"*) input       imgen_bt656_clk ,  //test the tau2_clk
+
+ 
+/////////////////////////////////////////////////////////just for add parameter/////////////////////////////////////////////////////////////////////////////////
+
+   input                           i_pc_rxd        , // 串口信号 面向   pc    输入
+  output  wire                         o_pc_txd        , // 串口信号 面向   pc    输出
+   input                           i_thv_rxd       , // 串口信号 面向 thv1500 输入
+   output wire                         o_thv_txd         // 串口信号 面向 thv1500 输出
+
+
+/////////////////////////////////////////////////////////just for add parameter/////////////////////////////////////////////////////////////////////////////////
+
+
+);
+    
+
+parameter      PIXEL=640;
+parameter      LINE =480;
+
+
+parameter	P_DATA_WIDTH = 8	;		
+	parameter	P_IMG_WIDTH  = 768	;//1280+128+128
+	parameter	P_IMG_HEIGHT = 576;  //288*2
+    
+    parameter	P_IMG_WIDTH_DIS  =640	; 
+	parameter	P_IMG_HEIGHT_DIS =480 ;	  
+
+//board mac 
+parameter  MY_MAC = 48'h12_34_56_78_90_ab;     
+//board ip 192.168.1.10
+parameter  MY_IP  = {8'd192,8'd168,8'd1,8'd10};  
+//destination mac ff_ff_ff_ff_ff_ff
+parameter  DEST_MAC   = 48'hff_ff_ff_ff_ff_ff;    
+//destination ip 192.168.1.100     
+parameter  DEST_IP    = {8'd192,8'd168,8'd1,8'd5};  
+/////////////////////////////////////////////////////////////////
+
+
+   //just for add parameter    20240703 
+
+    parameter    P_BYTES =6;
+    parameter      I_CLK =100_000_000 ;  //
+
+    parameter       BAUD =19200;
+
+ (*mark_debug="true"*) wire     [1:0]  linkspeed;
+
+///////////////////////////////////////////////////////////////////
+//wire define
+wire          mdio_clk;
+wire          clk_200m   ; //用于IO延时的时钟 
+              
+wire          gmii_rxc; //GMII接收时钟 //
+ (*mark_debug="true"*) wire          gmii_rxdv ; //GMII接收数据有效信号//
+ (*mark_debug="true"*) wire  [7:0]   gmii_rxd   ; //GMII接收数据//
+wire          gmii_txc; //GMII发送时钟//
+ (*mark_debug="true"*) wire          gmii_txen ; //GMII发送数据使能信号//
+ (*mark_debug="true"*) wire  [7:0]   gmii_txd   ; //GMII发送数据   //  
+
+ (*mark_debug="true"*) wire          arp_gmii_txen; //ARP GMII输出数据有效信号 
+ (*mark_debug="true"*) wire  [7:0]   arp_gmii_txd  ; //ARP GMII输出数据
+ (*mark_debug="true"*) wire          arp_rx_done   ; //ARP接收完成信号
+ (*mark_debug="true"*) wire          arp_rx_type   ; //ARP接收类型 0:请求  1:应答
+ (*mark_debug="true"*) wire  [47:0]  source_mac       ; //源MAC地址
+ (*mark_debug="true"*) wire  [31:0]  source_ip        ; //源IP地址
+ (*mark_debug="true"*) wire          arp_tx_en     ; //ARP发送使能信号
+ (*mark_debug="true"*) wire          arp_tx_type   ; //ARP发送类型 0:请求  1:应答
+ (*mark_debug="true"*) wire  [47:0]  destination_mac       ; //目的MAC地址
+ (*mark_debug="true"*) wire  [31:0]  desination_ip        ; //目的IP地址   
+ (*mark_debug="true"*) wire          arp_tx_done   ; //ARP 完成标志
+
+ (*mark_debug="true"*) wire          udp_gmii_txen; //UDP GMII 数据发送使能
+ (*mark_debug="true"*) wire  [7:0]   udp_gmii_txd  ; //UDP GMII发送数据
+ (*mark_debug="true"*) wire          rxd_pkt_done  ; //UDP 单包接收完成信号
+ (*mark_debug="true"*) wire          rxd_wr_en        ; //UDP 接收数据使能信号
+ (*mark_debug="true"*) wire  [31:0]  rxd_wr_data      ; //UDP 接收数据
+ (*mark_debug="true"*) wire  [15:0]  rxd_wr_byte_num  ; //UDP 接收的有效字节数 单位:字节
+ (*mark_debug="true"*) wire  [15:0]  tx_byte_num   ; //UDP 发送的有效字节数 单位:字节
+ (*mark_debug="true"*) wire          udp_tx_done   ; //UDP 发送完成信号
+ (*mark_debug="true"*) wire          tx_request        ; //UDP 读数据请求
+ (*mark_debug="true"*) wire  [31:0]   tx_data      ; //UDP 待发送数据
+
+
+wire          mdio_triger    ;  //triger satrt
+wire          write_read   ;  //0 is write,1 is read
+wire  [4:0]   phy_reg_addr    ;  //phy reg addr
+wire  [15:0]  write_data ;  //write data
+wire          done    ;  //读写完成
+wire  [15:0]  read_data ;  //readout data
+wire          read_ack  ;  //read ack
+wire          mdio_divid_clk    ;  //mdio clk
+(*mark_debug="true"*) wire imgen_bt656_clk_g;
+/////////////////////////just for add parameter//////////////////////////////
+//just for add parameter 
+
+reg[31:0]  maxgrayp ;
+reg[31:0]  mingrayp;
+reg[31:0]  maxgray ;
+reg[31:0]  mingray ;
+reg[31:0]   maxtemp ;
+reg[31:0]   mintemp ;
+
+wire[P_BYTES*32-1:0]  parameter_add;
+
+/////////////////////////just for add parameter///////////////////////////////////
+
+
+
+//assign tx_start_en = rxd``_pkt_done;
+//assign tx_byte_num = rxd_wr_byte_num;
+
+assign destination_mac = source_mac;
+assign desination_ip = source_ip;
+
+
+
+
+
+
+
+wire clk_out_20M;
+wire clk_out_100M;
+
+(*mark_debug="true"*) wire locked;
+(*mark_debug="true"*) wire locked_300M;
+
+
+
+
+
+// clock ，output 200M to iodelay,50Mhz to mdio module clock
+clk_wiz_0 clk_wiz_inst
+(
+    .clk_in1   (clk_g  ),//input 50Mhz
+    .clk_out1  (iodelay_ref_clk),  //output 200Mhz  
+    .clk_out2  (mdio_clk),//output 50Mhz
+    . clk_out3 (clk_out_20M),     // output clk_out3  10M--tau2
+    .clk_out4  (   ),
+    .locked(locked)
+);
+ clk_wiz_1 clk_wiz_inst0
+   (
+    // Clock out ports
+    .clk_out1(clk_out_100M),     // output clk_out1
+    .clk_out2(clk_out_300M),     // output clk_out2
+    // Status and control signals
+    .locked(locked_300M),       // output locked
+   // Clock in ports
+    .clk_in1(clk_g));      // input clk_in1
+
+
+//像素时钟使用BUF增强驱动
+   BUFG BUFG_inst (
+      .O(  imgen_bt656_clk_g), // 1-bit output: Clock output
+      .I(   imgen_bt656_clk )  // 1-bit input: Clock input
+ 
+  );
+
+   BUFG BUFG_50M (
+      .O(clk_g), // 1-bit output: Clock output
+      .I( clk)  // 1-bit input: Clock input
+ );
+
+
+
+
+/////////so upset  irene20240613 17:28
+
+reg 		[P_DATA_WIDTH-1:0]		imgen_bt656_data1 ;
+reg 		[P_DATA_WIDTH-1:0]		imgen_bt656_data2 ;
+reg 		[P_DATA_WIDTH-1:0]		imgen_bt656_data3 ;
+
+
+
+always  @(posedge imgen_bt656_clk_g or negedge rst_n)begin
+    if(rst_n==1'b0)begin
+    imgen_bt656_data1<=0;
+    imgen_bt656_data2<=0;
+    imgen_bt656_data3<=0;
+    end
+    else begin
+	imgen_bt656_data1 <= imgen_bt656_data ;
+	imgen_bt656_data2 <= imgen_bt656_data1;
+	imgen_bt656_data3 <= imgen_bt656_data2;
+   end
+end
+
+wire vio_cap_1;
+wire vio_fifo_1;
+wire vio_udp_0;
+
+
+ overload     overload_inst01(
+.clk               (clk_out_300M),
+.rst_n             (rst_n), 
+.phy_rxc           (phy_rxc), 
+.vio_fifo_1        (vio_fifo_1), 
+.vio_cap_1         (vio_cap_1), 
+.vio_udp_0         (vio_udp_0),
+. linkspeed        ( linkspeed)
+);
+
+
+mdio_driver mdio_driver_inst1(
+    .clk        (mdio_clk),
+    .rst_n      (rst_n),
+    .mdio_triger    (mdio_triger),
+    .write_read   (write_read  ),   
+    .reg_addr    (phy_reg_addr   ),   
+    .write_data (write_data),   
+    .done    (done),   
+    .read_data (read_data),   
+    .read_ack  (read_ack ),   
+    .divid_clk  (mdio_divid_clk),    
+    .phy_mdc    (mdc),   
+    .phy_mdio   (mdio)   
+);      
+
+//MDIO READ WRITE CONTROL  
+mdio_read_write  mdio_read_write_inst1(
+    .clk           (mdio_divid_clk),  
+    .rst_n         (rst_n ),  
+    .rst_trig      (1'b1 ),  
+    .done          (done   ),  
+    .read_data     (read_data),  
+    .read_ack      (read_ack ),  
+    .mdio_triger   (mdio_triger   ),  
+    .write_read    (write_read  ),  
+    .reg_addr      (phy_reg_addr   ),  
+    .write_data    (write_data),  
+    .state_led     (linkspeed)
+);      
+
+//RGMII to GMII,4BIT DDR to 8BIT SDR
+gmii_to_rgmii  gmii_to_rgmii_inst(
+    .refclk_200m    (iodelay_ref_clk),
+    .gmii_rxc      (gmii_rxc ),
+    .gmii_rxdv    (gmii_rxdv),
+    .gmii_rxd      (gmii_rxd),
+    .gmii_txc      (gmii_txc),
+    .gmii_txen    (gmii_txen),
+    .gmii_txd      (gmii_txd),
+    .rgmii_rxc      (phy_rxc),
+    .rgmii_rx_ctrl  (phy_rx_ctrl),
+    .rgmii_rxd      (phy_rxd),
+    .rgmii_txc      (phy_txc),
+    .rgmii_tx_ctrl  (phy_tx_ctrl),
+    .rgmii_txd      (phy_txd)
+    );
+
+//ARP module
+arp_top                                             
+   #(
+    .MY_MAC     (MY_MAC), //
+    .MY_IP      (MY_IP ),
+    .DEST_MAC       (DEST_MAC),
+    .DEST_IP        (DEST_IP)
+    )
+   arp_top_inst
+   (
+    .rst_n         (rst_n  ),
+    
+    .gmii_rxc      (gmii_rxc),
+    .gmii_rxdv    (gmii_rxdv ),
+    .gmii_rxd      (gmii_rxd   ),
+    .gmii_txc      (gmii_txc),
+    .gmii_txen    (arp_gmii_txen ),
+    .gmii_txd      (arp_gmii_txd),
+                    
+    .arp_rx_done   (arp_rx_done),
+    .arp_rx_type   (arp_rx_type),
+    .source_mac    (source_mac    ),
+    .source_ip     (source_ip     ),
+    .arp_tx_en     (arp_tx_en  ),
+    .arp_tx_type   (arp_tx_type),
+    .destination_mac       (destination_mac    ),
+    .desination_ip        (desination_ip     ),
+    .tx_done       (arp_tx_done)
+    );
+
+
+
+
+// eth rx tx control
+eth_ctrl eth_ctrl_inst(
+    .clk            (gmii_rxc),
+    .rst_n          (rst_n),
+
+    .arp_rx_done    (arp_rx_done   ),
+    .arp_rx_type    (arp_rx_type   ),
+    .arp_tx_en      (arp_tx_en     ),
+    .arp_tx_type    (arp_tx_type   ),
+    .arp_tx_done    (arp_tx_done   ),
+    .arp_gmii_txen (arp_gmii_txen),
+    .arp_gmii_txd   (arp_gmii_txd  ),
+                     
+    .udp_gmii_txen (udp_gmii_txen),
+    .udp_gmii_txd   (udp_gmii_txd  ),
+                     
+    .gmii_txen     (gmii_txen ),
+    .gmii_txd       (gmii_txd )
+    );
+
+
+    (*mark_debug="true"*)  wire[6:0]            cur_state ;
+
+wire  txd_over;
+wire rxd_rec_ip_en;  //just for 
+
+
+
+//UDP module
+udp_top                                             
+   #(
+    .MY_MAC     (MY_MAC), //
+    .MY_IP      (MY_IP ),
+    .DEST_MAC       (DEST_MAC),
+    .DEST_IP        (DEST_IP)
+    )
+   udp_top_inst
+   (
+    //.rst_n         (rst_n),  
+    .rst_n           (vio_udp_0),
+   // .rst_n           (rst_n ),
+    .gmii_rxc      (gmii_rxc),           
+    .gmii_rxdv     (gmii_rxdv),         
+    .gmii_rxd      (gmii_rxd),                   
+    .gmii_txc      (gmii_txc ), 
+    .gmii_txen     (udp_gmii_txen),         
+    .gmii_txd      (udp_gmii_txd),
+    .rxd_pkt_done  (rxd_pkt_done), //dismiss    
+    .rxd_wr_en     (rxd_wr_en),     
+    .rxd_wr_data   (rxd_wr_data),         
+    .rxd_wr_byte_num  (rxd_wr_byte_num), //dismiss  
+    .tx_start_en   (start_tx_flag),        
+    .tx_data       (tx_data),    //     
+    .tx_byte_num   (tx_byte_num), //PIXEL*2 
+    .destination_mac       (destination_mac),
+    .destination_ip        (desination_ip),    
+    .tx_done       (udp_tx_done),        
+    .tx_request        (tx_request),
+    . cur_state       ( cur_state) ,
+    .txd_over        (txd_over)   ,
+    .rxd_rec_ip_en   (rxd_rec_ip_en )
+ 
+ 
+    
+    );   
+
+wire  tx_data_vld;
+
+//wire[7:0] i_parameter;
+ reg[7:0] imgen_bt656_data_ff0;
+
+
+
+wire tx_heart_point;
+
+ imgen_pre_handle  #(P_DATA_WIDTH,P_IMG_WIDTH,P_IMG_HEIGHT,	P_IMG_WIDTH_DIS ,P_IMG_HEIGHT_DIS) imgen_pre_handle_inst0(
+  .clk        ( imgen_bt656_clk_g)  ,
+  .clk_phy    (gmii_rxc),
+  .rst_n      (rst_n ) ,
+  .tx_request  (tx_request),
+  .start_tx_flag (start_tx_flag),
+  .data_out    (tx_data  ),  //32bit
+  .fifo_imgen_rd_en     (tx_data_vld ),
+  .tx_byte_num    (tx_byte_num  ),
+  .udp_tx_cur_state     (cur_state),
+ 
+  . i_parameter   (  parameter_add ),
+  . imgen_bt656_data   ( imgen_bt656_data3),
+  .tx_done         (udp_tx_done),
+ .txd_over         (txd_over) ,
+ .tx_heart_point   (tx_heart_point),
+ .vio_fifo_1       (vio_fifo_1),
+ .vio_cap_1        (vio_cap_1 )
+
+  );
+
+
+
+//just for add lost signal check   20ns/period   irene20240712 
+/*
+lost_check  lost_check_inst0 (
+    .clk                  (clk_out_300M),
+    .rst_n               (rst_n) ,           
+    .rxd_rec_ip_en       (rxd_rec_ip_en),   
+    .tx_heart_point (tx_heart_point),
+    .rx_lost_flag           (rx_lost_flag)
+    
+);
+*/
+
+///////////////////////////////////////////////////////////////////////////just for add parameter////////////////////////////////////////////////////////////////
+/*
+(*mark_debug="true"*)wire[3:0]  o_result_type;
+(*mark_debug="true"*)wire[15:0] o_result_data;
+(*mark_debug="true"*)wire     o_result_en;
+
+
+//////////just for test ///////////
+
+
+ uart_top #(
+    I_CLK           , //时钟输入 100Mhz
+    BAUD                 //波特率       
+)  
+
+(   
+     
+   . clk   ( clk_out_100M)          , // 
+   .rst_n  (rst_n)          , //
+    //hardware                                        
+   .i_pc_rxd (i_pc_rxd)       , // 串口信号 面向   pc    输入
+   .o_pc_txd  (o_pc_txd)       , // 串口信号 面向   pc    输出
+    //hardware                                        
+   .i_thv_rxd  (i_thv_rxd)       , // 串口信号 面向 thv1500 输入
+   .o_thv_txd  (o_thv_txd)    , // 串口信号 面向 thv1500 输出
+//    //user interface            
+   .o_result_en (o_result_en)     ,//输出转换结果使能
+   .o_result_type (o_result_type)   ,//输出转换类型 ： 1 : low  ; 2 : lowP  ; 3 : lowT  ; 4 : high  ; 5 : highP ; 6 : highT  ; 7 : LEVEL  ; 8 : SPAN
+   .o_result_data (o_result_data)    //输出转换结果   
+       
+);
+
+/////////////////////////////just for add parameter////////////////////
+always  @(posedge clk_out_100M or negedge rst_n)begin
+    if(rst_n==1'b0)begin
+       maxgrayp<=0;
+       mingrayp<=0;
+       maxgray<=0;
+       mingray<=0;
+       maxtemp<=0;
+       mintemp<=0;
+    end
+    else if(o_result_en==1) begin
+     if(o_result_type==5)begin
+         maxgrayp<=o_result_data;
+     end
+     else if(o_result_type==2)begin
+        mingrayp<=o_result_data;
+     end
+     else if(o_result_type==4)begin
+        maxgray<=o_result_data;
+     end
+     else if(o_result_type==1)begin
+        mingray<=o_result_data;
+     end
+     else if(o_result_type==6)begin
+         maxtemp<=o_result_data;
+     end
+     else if(o_result_type==3)begin
+         mintemp<=o_result_data;
+     end
+
+   end
+    
+end
+
+
+assign parameter_add = {  maxgrayp,mingrayp,maxgray,mingray, maxtemp,mintemp};
+*/
+assign parameter_add=0;
+
+/////////////////////////////////////////////////////////just for add parameter/////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+endmodule
