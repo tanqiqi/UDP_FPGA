@@ -14,17 +14,16 @@ module imgen_pre_handle  #(parameter	P_DATA_WIDTH = 8	,
 
 input[7:0]  imgen_bt656_data,
   input[191:0]  i_parameter,
-   (*mark_debug="true"*) input[6:0]  udp_tx_cur_state,
-   (*mark_debug="true"*) input    tx_done,
+input[6:0]  udp_tx_cur_state,
+input    tx_done,
  
 
 
-  (*mark_debug="true"*) output reg start_tx_flag,
+  output reg start_tx_flag,
 
   output reg[31:0] data_out,  //32bit
-  (*mark_debug="true"*)output wire fifo_imgen_rd_en,
- (*mark_debug="true"*)   output reg [15 : 0]  tx_byte_num,
-   (*mark_debug="true"*) input           txd_over ,
+  output wire fifo_imgen_rd_en,
+  output reg [15 : 0]  tx_byte_num,   input           txd_over ,
 
    (*mark_debug="true"*) output wire  tx_heart_point,
    input             vio_cap_1,
@@ -37,26 +36,26 @@ input[7:0]  imgen_bt656_data,
 
   
  
-(*mark_debug="true"*)  wire      imgen_eop;
-(*mark_debug="true"*)  wire[7:0] imgen_out;
-(*mark_debug="true"*)  wire      imgen_out_vld;
+wire      imgen_eop;
+wire[7:0] imgen_out;
+wire      imgen_out_vld;
 
  
- (*mark_debug="true"*)   wire fifo1_imgen_empty;
- (*mark_debug="true"*)   wire[31:0] fifo1_imgen_dout;
+wire fifo1_imgen_empty;
+wire[31:0] fifo1_imgen_dout;
 
 
- (*mark_debug="true"*)   wire fifo_length_rd_en;
- (*mark_debug="true"*)   wire[15:0] fifo_length_dout;
- (*mark_debug="true"*)   wire fifo_length_empty;
+wire fifo_length_rd_en;
+wire[15:0] fifo_length_dout;
+wire fifo_length_empty;
 
- (*mark_debug="true"*)  reg[15:0] cnt;
-(*mark_debug="true"*)  wire add_cnt;
-(*mark_debug="true"*)  wire end_cnt;
+reg[15:0] cnt;
+wire add_cnt;
+wire end_cnt;
 
 
-  (*mark_debug="true"*)  wire fifo1_imgen_full;
-  (*mark_debug="true"*)  wire fifo_length_full;
+  wire fifo1_imgen_full;
+  wire fifo_length_full;
 
 
 
@@ -182,21 +181,6 @@ always  @(posedge  clk_phy or negedge rst_n)begin
     end
 end
 
-
-//just for test 
-
-//  (*mark_debug="true"*)  reg tx_error_flag;
-
-/*
-always  @(posedge clk or negedge rst_n)begin
-    if(rst_n==1'b0)begin
-        tx_error_flag<=0;
-    end
-    else if(tx_byte_num!=(P_IMG_WIDTH_DIS+4))begin
-        tx_error_flag<=1;
-    end
-end
-*/
 
  
 endmodule

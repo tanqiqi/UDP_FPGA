@@ -3,10 +3,10 @@ module arp_txd(
     input                clk        , //时钟信号
     input                rst_n      , //复位信号，低电平有效
     
-     (*mark_debug="true"*) input                arp_tx_en  , //ARP发送使能信号
-     (*mark_debug="true"*) input                arp_tx_type, //ARP发送类型 0:请求  1:应答
-    (*mark_debug="true"*) input        [47:0]  destination_mac    , //发送的目标MAC地址
-    (*mark_debug="true"*)  input        [31:0]  destination_ip     , //发送的目标IP地址
+    input                arp_tx_en  , //ARP发送使能信号
+    input                arp_tx_type, //ARP发送类型 0:请求  1:应答
+    input        [47:0]  destination_mac    , //发送的目标MAC地址
+    input        [31:0]  destination_ip     , //发送的目标IP地址
     input        [31:0]  crc_data   , //CRC校验数据
     input         [7:0]  crc_next   , //CRC下次校验完成数据
     output  reg          tx_done    , //以太网发送完成信号

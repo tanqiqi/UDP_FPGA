@@ -3,8 +3,8 @@ module eth_ctrl(
     input              clk       ,    //系统时钟
     input              rst_n     ,    //系统复位信号，低电平有效 
     //arp port                                 
-    input              arp_rx_done,   //ARP接收完成信号
-    input              arp_rx_type,   //ARP接收类型 0:请求  1:应答
+    input              arp_rx_done,   //ARP RX
+    input              arp_rx_type,   //ARP_RX_TYPE 0:request  1:ACK
     output             arp_tx_en,     //ARP发送使能信号
     output             arp_tx_type,   //ARP发送类型 0:请求  1:应答
     input              arp_tx_done,   //ARP发送完成信号

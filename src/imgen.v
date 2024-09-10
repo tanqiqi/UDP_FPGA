@@ -3,9 +3,9 @@ module imgen #(parameter PIXEL=640,parameter LINE =480)
 
 	input				clk		,	
 	input				rst_n	,
-	(*mark_debug="true"*)	output reg[15:0]	img_dat	   ,
-	(*mark_debug="true"*)	output reg      img_line_vld	,
-	(*mark_debug="true"*)	output reg      img_frame_vld 
+	output reg[15:0]	img_dat	   ,
+	output reg      img_line_vld	,
+	output reg      img_frame_vld 
 
 );
 

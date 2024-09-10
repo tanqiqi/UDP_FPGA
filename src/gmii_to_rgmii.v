@@ -1,20 +1,20 @@
 //port ddr to sdr,4bit to 8bit rgmii<->gmii
 module gmii_to_rgmii(
-    input              refclk_200m  , //IDELAY时钟
+    input              refclk_200m  , //IDELAY clk
     //GMII
-    output             gmii_rxc , //GMII接收时钟
-    output             gmii_rxdv  , //GMII接收数据有效信号
-    output      [7:0]  gmii_rxd    , //GMII接收数据
-    output             gmii_txc , //GMII发送时钟
-    input              gmii_txen  , //GMII发送数据使能信号
-    input       [7:0]  gmii_txd    , //GMII发送数据            
+    output             gmii_rxc ,      
+    output             gmii_rxdv  ,   
+    output      [7:0]  gmii_rxd    ,
+    output             gmii_txc ,  
+    input              gmii_txen  ,   
+    input       [7:0]  gmii_txd    ,  
     //RGMII 
-    input              rgmii_rxc   , //RGMII接收时钟
-    input              rgmii_rx_ctrl, //RGMII接收数据控制信号
-    input       [3:0]  rgmii_rxd   , //RGMII接收数据
-    output             rgmii_txc   , //RGMII发送时钟    
-    output             rgmii_tx_ctrl, //RGMII发送数据控制信号
-    output      [3:0]  rgmii_txd     //RGMII发送数据          
+    input              rgmii_rxc   ,
+    input              rgmii_rx_ctrl,  
+    input       [3:0]  rgmii_rxd   ,
+    output             rgmii_txc   ,  
+    output             rgmii_tx_ctrl,  
+    output      [3:0]  rgmii_txd         
     );
 
 assign gmii_txc = gmii_rxc;
